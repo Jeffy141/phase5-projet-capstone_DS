@@ -102,9 +102,7 @@ def find_csv_file():
     possible_files = [
         'ensemble_de_donnees_de_surveillance_iot.csv',  # Nom français
         'iot_equipment_monitoring_dataset.csv',         # Nom anglais
-        'donnees_iot.csv',
-        'data_iot.csv',
-        'iot_data.csv'
+       
     ]
     
     for file_name in possible_files:
