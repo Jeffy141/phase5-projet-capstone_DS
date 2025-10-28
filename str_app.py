@@ -30,11 +30,13 @@ class IntelligentAlertSystem:
 
     def predict_with_confidence(self, sensor_data):
         """Prédiction avec niveau de confiance"""
+        # S'assurer que toutes les features sont présentes
         input_dict = {}
         for feature in self.features:
             if feature in sensor_data:
                 input_dict[feature] = sensor_data[feature]
             else:
+                # Valeur par défaut pour les features manquantes
                 input_dict[feature] = 0.0
         
         input_data = pd.DataFrame([input_dict])[self.features]
