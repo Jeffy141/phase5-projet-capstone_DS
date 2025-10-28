@@ -6,7 +6,8 @@ import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
-from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
+from sklearn.model_selection import train_test_split
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -213,7 +214,6 @@ def load_model_and_data():
 # --- FONCTIONS DE VISUALISATION ---
 def create_confusion_matrix(model, X, y):
     """Crée la matrice de confusion"""
-    from sklearn.model_selection import train_test_split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     y_pred = model.predict(X_test)
     
@@ -223,6 +223,12 @@ def create_confusion_matrix(model, X, y):
     ax.set_title('MATRICE DE CONFUSION', fontsize=16, fontweight='bold')
     ax.set_xlabel('Prédictions')
     ax.set_ylabel('Valeurs Réelles')
+    
+    # Ajouter l'accuracy
+    accuracy = accuracy_score(y_test, y_pred)
+    ax.text(0.5, -0.1, f'Accuracy: {accuracy:.3f}', transform=ax.transAxes, 
+            ha='center', fontsize=12, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue"))
+    
     return fig
 
 def create_feature_importance(model, features):
@@ -250,12 +256,14 @@ def create_fault_distribution(df):
     
     # Camembert
     fault_dist = df['Fault_Type'].value_counts()
-    ax1.pie(fault_dist.values, labels=fault_dist.index, autopct='%1.1f%%', startangle=90)
-    ax1.set_title('Distribution des Types de Défauts')
+    colors = ['lightgreen', 'red', 'orange', 'yellow']
+    ax1.pie(fault_dist.values, labels=fault_dist.index, autopct='%1.1f%%', 
+            startangle=90, colors=colors[:len(fault_dist)])
+    ax1.set_title('Distribution des Types de Défauts', fontweight='bold')
     
     # Barres
-    sns.barplot(x=fault_dist.index, y=fault_dist.values, ax=ax2)
-    ax2.set_title('Nombre de Défauts par Type')
+    sns.barplot(x=fault_dist.index, y=fault_dist.values, ax=ax2, palette=colors[:len(fault_dist)])
+    ax2.set_title('Nombre de Défauts par Type', fontweight='bold')
     ax2.tick_params(axis='x', rotation=45)
     
     plt.tight_layout()
@@ -275,14 +283,19 @@ def create_sensor_risk_analysis(df):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
     
     # Top 10 capteurs à risque
-    high_risk_sensors['taux_defaut'].head(10).plot(kind='bar', ax=ax1, color='red')
-    ax1.set_title('TOP 10 - TAUX DE DÉFAUTS PAR CAPTEUR')
+    top_10 = high_risk_sensors['taux_defaut'].head(10)
+    colors = ['red' if x > 0.3 else 'orange' for x in top_10.values]
+    top_10.plot(kind='bar', ax=ax1, color=colors)
+    ax1.set_title('TOP 10 - TAUX DE DÉFAUTS PAR CAPTEUR', fontweight='bold')
     ax1.set_ylabel('Taux de Défauts')
+    ax1.tick_params(axis='x', rotation=45)
     
     # Scatter plot température vs vibration
-    sns.scatterplot(data=sensor_analysis, x='temp_max', y='vibration_max',
-                   size='taux_defaut', hue='taux_defaut', sizes=(20, 200), ax=ax2)
-    ax2.set_title('PROFIL DES CAPTEURS - TEMPÉRATURE vs VIBRATION')
+    scatter = sns.scatterplot(data=sensor_analysis, x='temp_max', y='vibration_max',
+                   size='taux_defaut', hue='taux_defaut', sizes=(20, 200), ax=ax2, palette='viridis')
+    ax2.set_title('PROFIL DES CAPTEURS - TEMPÉRATURE vs VIBRATION', fontweight='bold')
+    ax2.set_xlabel('Température Max (°C)')
+    ax2.set_ylabel('Vibration Max (m/s²)')
     
     plt.tight_layout()
     return fig, high_risk_sensors.head(10)
@@ -290,21 +303,22 @@ def create_sensor_risk_analysis(df):
 def create_correlation_heatmap(df):
     """Crée la heatmap de corrélation"""
     numeric_features = ['Temperature', 'Vibration', 'Pressure', 'Voltage', 'Current', 
-                       'FFT_Feature1', 'FFT_Feature2', 'Anomaly_Score']
+                       'FFT_Feature1', 'FFT_Feature2', 'Anomaly_Score', 'Fault_Status']
     numeric_features = [f for f in numeric_features if f in df.columns]
     
     fig, ax = plt.subplots(figsize=(12, 10))
     correlation_matrix = df[numeric_features].corr()
     sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', center=0,
-                square=True, linewidths=0.5, fmt='.2f', ax=ax)
+                square=True, linewidths=0.5, fmt='.2f', ax=ax, cbar_kws={"shrink": .8})
     ax.set_title('MATRICE DE CORRÉLATION - VARIABLES IoT', fontsize=16, fontweight='bold')
     return fig
 
 def create_sensor_visualization(sensor_data, prediction):
     """Crée la visualisation des données du capteur"""
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
+    fig = plt.figure(figsize=(15, 10))
     
     # Graphique radar pour les paramètres principaux
+    ax1 = fig.add_subplot(221, polar=True)
     parameters = ['Temperature', 'Vibration', 'Pressure', 'Voltage', 'Current']
     values = [sensor_data.get(p, 0) for p in parameters]
     
@@ -316,7 +330,6 @@ def create_sensor_visualization(sensor_data, prediction):
     angles += angles[:1]
     normalized_vals += normalized_vals[:1]
     
-    ax1 = plt.subplot(221, polar=True)
     ax1.plot(angles, normalized_vals, 'o-', linewidth=2, label='Capteur')
     ax1.fill(angles, normalized_vals, alpha=0.25)
     ax1.set_thetagrids(np.degrees(angles[:-1]), parameters)
@@ -324,7 +337,7 @@ def create_sensor_visualization(sensor_data, prediction):
     ax1.grid(True)
     
     # Barres des valeurs actuelles
-    ax2 = plt.subplot(222)
+    ax2 = fig.add_subplot(222)
     colors = ['red' if v > max_vals[i]*0.8 else 'green' for i, v in enumerate(values)]
     bars = ax2.bar(parameters, values, color=colors, alpha=0.7)
     ax2.set_title('VALEURS DES CAPTEURS', fontweight='bold')
@@ -340,10 +353,11 @@ def create_sensor_visualization(sensor_data, prediction):
     danger_thresholds = [85, 8, 130, 210, 20]
     for i, (param, danger) in enumerate(zip(parameters, danger_thresholds)):
         ax2.axhline(y=danger, color='red', linestyle='--', alpha=0.5)
-        ax2.text(i, danger + 1, f'Seuil {param}', fontsize=8, color='red')
+        ax2.text(len(parameters)-0.5, danger + (i*2), f'Seuil {param}: {danger}', 
+                fontsize=8, color='red', ha='right')
     
     # Distribution temporelle simulée
-    ax3 = plt.subplot(223)
+    ax3 = fig.add_subplot(223)
     time_points = np.arange(24)
     temp_trend = sensor_data['Temperature'] + np.random.normal(0, 5, 24)
     vib_trend = sensor_data['Vibration'] + np.random.normal(0, 1, 24)
@@ -363,7 +377,7 @@ def create_sensor_visualization(sensor_data, prediction):
     ax3_twin.legend(loc='upper right')
     
     # Statut de prédiction
-    ax4 = plt.subplot(224)
+    ax4 = fig.add_subplot(224)
     status_colors = {'HIGH': 'red', 'MEDIUM': 'orange', 'LOW': 'yellow', 'SAFE': 'green'}
     status = 'HIGH' if prediction != 'None' else 'SAFE'
     
@@ -379,25 +393,120 @@ def create_sensor_visualization(sensor_data, prediction):
     plt.tight_layout()
     return fig
 
+def create_performance_dashboard(model, X, y):
+    """Crée un dashboard de performance complet"""
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    y_pred = model.predict(X_test)
+    
+    # Métriques de performance
+    accuracy = accuracy_score(y_test, y_pred)
+    report = classification_report(y_test, y_pred, output_dict=True)
+    
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
+    
+    # Accuracy par classe
+    classes = model.classes_
+    class_accuracy = []
+    for cls in classes:
+        if cls in report:
+            class_accuracy.append(report[cls]['precision'])
+    
+    ax1.bar(classes, class_accuracy, color=['lightblue', 'lightcoral', 'lightgreen', 'yellow'])
+    ax1.set_title('PRÉCISION PAR CLASSE', fontweight='bold')
+    ax1.set_ylabel('Précision')
+    ax1.tick_params(axis='x', rotation=45)
+    
+    # Distribution des probabilités
+    y_proba = model.predict_proba(X_test)
+    proba_df = pd.DataFrame(y_proba, columns=classes)
+    proba_df['true_class'] = y_test.reset_index(drop=True)
+    
+    for cls in classes:
+        cls_proba = proba_df[proba_df['true_class'] == cls][cls]
+        ax2.hist(cls_proba, alpha=0.6, label=cls, bins=20)
+    
+    ax2.set_title('DISTRIBUTION DES PROBABILITÉS', fontweight='bold')
+    ax2.set_xlabel('Probabilité')
+    ax2.set_ylabel('Fréquence')
+    ax2.legend()
+    
+    # Learning curve (simulée)
+    train_sizes = np.linspace(0.1, 1.0, 10)
+    train_scores = []
+    test_scores = []
+    
+    for size in train_sizes:
+        n_train = int(size * len(X_train))
+        model.fit(X_train[:n_train], y_train[:n_train])
+        train_scores.append(accuracy_score(y_train[:n_train], model.predict(X_train[:n_train])))
+        test_scores.append(accuracy_score(y_test, model.predict(X_test)))
+    
+    ax3.plot(train_sizes, train_scores, 'o-', label='Train', color='blue')
+    ax3.plot(train_sizes, test_scores, 'o-', label='Test', color='red')
+    ax3.set_title('COURBE D\'APPRENTISSAGE', fontweight='bold')
+    ax3.set_xlabel('Taille de l\'ensemble d\'entraînement')
+    ax3.set_ylabel('Accuracy')
+    ax3.legend()
+    ax3.grid(True, alpha=0.3)
+    
+    # Métriques globales
+    metrics = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
+    values = [
+        accuracy,
+        report['weighted avg']['precision'],
+        report['weighted avg']['recall'],
+        report['weighted avg']['f1-score']
+    ]
+    
+    colors = ['lightblue', 'lightgreen', 'lightcoral', 'gold']
+    bars = ax4.bar(metrics, values, color=colors)
+    ax4.set_title('MÉTRIQUES GLOBALES DU MODÈLE', fontweight='bold')
+    ax4.set_ylabel('Score')
+    ax4.set_ylim(0, 1)
+    
+    # Ajouter les valeurs sur les barres
+    for bar, value in zip(bars, values):
+        ax4.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, 
+                f'{value:.3f}', ha='center', va='bottom')
+    
+    plt.tight_layout()
+    return fig
+
 # --- INTERFACE PRINCIPALE ---
 def main():
     st.title("🏭 Système de Maintenance Prédictive IoT")
     st.markdown("**Projet Capstone - Présentation Complète avec Visualisations**")
     
+    # Barre de progression
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
     # Chargement des données
     try:
+        status_text.text("🎯 Chargement des données...")
+        progress_bar.progress(25)
+        
         alert_system, df_clean, model, features, X, y = load_model_and_data()
+        
+        status_text.text("✅ Données chargées avec succès!")
+        progress_bar.progress(100)
+        
     except Exception as e:
         st.error(f"Erreur lors du chargement : {e}")
         return
     
+    # Supprimer la barre de progression après chargement
+    progress_bar.empty()
+    status_text.empty()
+    
     # Onglets pour l'organisation
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "🎯 Simulation", 
         "📊 Analyse Données", 
         "🤖 Performance Modèle",
         "📈 Graphiques Présentation",
-        "🏆 Top 10 Capteurs"
+        "🏆 Top 10 Capteurs",
+        "📋 Rapport Complet"
     ])
     
     with tab1:
@@ -451,6 +560,14 @@ def main():
                 
                 # Résultats
                 col1, col2, col3 = st.columns(3)
+                
+                risk_color = {
+                    'HIGH': 'red', 
+                    'MEDIUM': 'orange', 
+                    'LOW': 'yellow', 
+                    'SAFE': 'green'
+                }
+                
                 col1.metric("Prédiction", alert_info['prediction'])
                 col2.metric("Niveau de Risque", alert_info['risk_level'])
                 col3.metric("Confiance", f"{alert_info['confidence']:.1%}")
@@ -482,7 +599,7 @@ def main():
                     with st.expander("📊 Probabilités par type de défaut"):
                         prob_df = pd.DataFrame(proba_dict, index=['Probabilité']).T
                         prob_df_sorted = prob_df.sort_values('Probabilité', ascending=False)
-                        st.dataframe(prob_df_sorted.style.format("{:.1%}"))
+                        st.dataframe(prob_df_sorted.style.format("{:.1%}").background_gradient(cmap='RdYlGn_r'))
     
     with tab2:
         st.header("📊 Analyse Exploratoire des Données")
@@ -501,7 +618,9 @@ def main():
         
         # Statistiques descriptives
         st.subheader("📋 Statistiques Descriptives")
-        st.dataframe(df_clean[['Temperature', 'Vibration', 'Pressure', 'Voltage', 'Current']].describe())
+        numeric_cols = ['Temperature', 'Vibration', 'Pressure', 'Voltage', 'Current']
+        numeric_cols = [col for col in numeric_cols if col in df_clean.columns]
+        st.dataframe(df_clean[numeric_cols].describe().style.background_gradient(cmap='Blues'))
     
     with tab3:
         st.header("🤖 Performance du Modèle")
@@ -519,7 +638,12 @@ def main():
             st.pyplot(fig_imp)
             
             st.subheader("Top 10 Features")
-            st.dataframe(feature_imp.head(10))
+            st.dataframe(feature_imp.head(10).style.background_gradient(cmap='Greens'))
+        
+        # Dashboard de performance
+        st.subheader("📊 Dashboard de Performance Complet")
+        fig_perf = create_performance_dashboard(model, X, y)
+        st.pyplot(fig_perf)
     
     with tab4:
         st.header("📈 Graphiques pour Présentation")
@@ -553,7 +677,7 @@ def main():
         st.pyplot(fig_risk)
         
         st.subheader("📋 Liste Détaillée des Capteurs à Risque")
-        st.dataframe(top_sensors)
+        st.dataframe(top_sensors.style.background_gradient(cmap='Reds', subset=['taux_defaut']))
         
         # Explication des résultats
         st.subheader("📝 Analyse des Résultats")
@@ -567,6 +691,54 @@ def main():
         - Prioriser la maintenance sur les capteurs en rouge
         - Surveiller les tendances des capteurs en orange
         - Maintenir la surveillance standard pour les verts
+        """)
+    
+    with tab6:
+        st.header("📋 Rapport Complet du Système")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📈 Métriques Clés")
+            
+            # Calcul des métriques
+            total_sensors = df_clean['Sensor_ID'].nunique()
+            fault_rate = df_clean['Fault_Status'].mean() * 100
+            avg_temperature = df_clean['Temperature'].mean()
+            avg_vibration = df_clean['Vibration'].mean()
+            
+            st.metric("Nombre total de capteurs", total_sensors)
+            st.metric("Taux de défaut global", f"{fault_rate:.1f}%")
+            st.metric("Température moyenne", f"{avg_temperature:.1f}°C")
+            st.metric("Vibration moyenne", f"{avg_vibration:.1f} m/s²")
+        
+        with col2:
+            st.subheader("🎯 Performance du Modèle")
+            
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+            y_pred = model.predict(X_test)
+            accuracy = accuracy_score(y_test, y_pred)
+            
+            st.metric("Accuracy globale", f"{accuracy:.3f}")
+            st.metric("Nombre de features", len(features))
+            st.metric("Classes prédites", len(model.classes_))
+        
+        # Résumé exécutif
+        st.subheader("📋 Résumé Exécutif")
+        st.markdown(f"""
+        **Système de Maintenance Prédictive IoT - Rapport de Performance**
+        
+        - **📊 Couverture des données** : {len(df_clean)} échantillons analysés
+        - **🤖 Performance du modèle** : {accuracy:.1%} de précision
+        - **🔧 Types de défauts détectés** : {len(model.classes_)}
+        - **🎯 Capteurs à risque identifiés** : {len(top_sensors) if 'top_sensors' in locals() else 'N/A'}
+        - **💡 Recommandations** : Système opérationnel et prêt pour le déploiement
+        
+        **Points forts :**
+        ✅ Détection précoce des défauts  
+        ✅ Interface intuitive  
+        ✅ Modèle ensemble robuste  
+        ✅ Visualisations complètes  
         """)
 
 # Sidebar avec informations
@@ -596,6 +768,19 @@ with st.sidebar:
     4. Graphiques explicatifs
     5. Recommandations business
     """)
+    
+    # Ajouter un sélecteur de thème
+    st.header("🎨 Personnalisation")
+    theme = st.selectbox("Choisir le thème des graphiques:", 
+                        ["Default", "Dark", "Pastel", "Bright"])
+    
+    if theme == "Dark":
+        plt.style.use('dark_background')
+        sns.set_palette("husl")
+    elif theme == "Pastel":
+        sns.set_palette("pastel")
+    elif theme == "Bright":
+        sns.set_palette("bright")
 
 if __name__ == "__main__":
     main()
