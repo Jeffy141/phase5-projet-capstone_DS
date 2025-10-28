@@ -7,7 +7,7 @@ from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
 from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split # Assurez-vous que cette ligne est bien là!
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -18,9 +18,11 @@ st.set_page_config(
     layout="wide"
 )
 
-# Style pour les graphiques
-plt.style.use('seaborn-v0_8')
-sns.set_palette("husl")
+# Style pour les graphiques (on enlève 'plt.style.use')
+sns.set_palette("husl") # Gardez ceci pour les couleurs de seaborn
+
+# --- CLASSE SYSTÈME D'ALERTE INTELLIGENT ---
+# ... le reste du code ...
 
 # --- CLASSE SYSTÈME D'ALERTE INTELLIGENT ---
 class IntelligentAlertSystem:
