@@ -197,34 +197,16 @@ def load_model_and_data():
     X = df_clean[features]
     y = df_clean['Fault_Type']
 
-    # Modèle ensemble
+    # Modèle ensemble (sans SVC)
     rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
     xgb_model = XGBClassifier(random_state=42)
-    # Laissez l'initialisation de SVC telle quelle, mais assurez-vous que les classes sont bien définies
-    svm_model = SVC(probability=True, random_state=42) 
+    # svm_model = SVC(probability=True, random_state=42) # ❌ Ligne retirée
     
     ensemble_model = VotingClassifier(
-        estimators=[('rf', rf_model), ('xgb', xgb_model), ('svm', svm_model)],
-        voting='soft',
-        # 🚨 AJOUTER CE PARAMÈTRE POUR GÉRER LES CLASSES AVEC SVC
-        # flatten_transform=False
+        # N'inclure que les modèles qui ne créent pas de problèmes de classes
+        estimators=[('rf', rf_model), ('xgb', xgb_model)],
+        voting='soft'
     )
-    # Dans les versions récentes de scikit-learn, le paramètre flatten_transform n'est plus pertinent,
-    # L'erreur est souvent due au fait que SVC n'a pas la même notion de 'classes' que RF/XGBoost.
-    # Dans ce cas, nous devons soit retirer SVC, soit entraîner SVC séparément.
-
-    # 💡 Nouvelle tentative : Entraîner le VotingClassifier sans intervention
-    # Si le problème persiste, il est fort possible que vous ayez une classe avec un seul échantillon.
-    # Vérifiez la distribution de y.
-    
-    # Tentons de vérifier la distribution des classes dans la fonction load_model_and_data :
-    if y.nunique() < 3 or y.value_counts().min() < 2:
-        st.error(f"⚠️ **Attention :** Distribution des classes insuffisante. Classes trouvées : {y.unique()}.")
-        # Si vous utilisez des données simulées, ce bloc ne se déclenchera pas.
-        # Si vous utilisez vos vraies données, il se peut qu'une classe n'ait qu'un seul échantillon.
-        # Pour le déploiement, assurons-nous d'avoir au moins 4 classes si vous avez 4 noms de classes.
-        # Si 'None', 'Electrical Fault', 'Mechanical Failure', 'Overheating' sont les 4 classes attendues.
-        pass # Laissez le code original pour l'instant et concentrons-nous sur SVC.
 
     ensemble_model.fit(X, y) 
     
