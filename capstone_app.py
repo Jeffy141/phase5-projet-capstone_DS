@@ -200,13 +200,22 @@ def load_model_and_data():
 # Modèle ensemble
     rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
     xgb_model = XGBClassifier(random_state=42)
-    # ❌ svm_model est retiré car il est la source du conflit de classes
     
     ensemble_model = VotingClassifier(
-        # 🟢 N'utiliser que Random Forest et XGBoost pour garantir la stabilité
         estimators=[('rf', rf_model), ('xgb', xgb_model)],
         voting='soft'
     )
+
+    # 🟢 ÉTAPE CRUCIALE : Entraîner le modèle !
+    ensemble_model.fit(X, y) 
+    
+    # Initialiser le système d'alerte
+    alert_system = IntelligentAlertSystem(ensemble_model, features)
+    
+    st.success("🤖 Modèle entraîné et prêt à l'emploi !")
+    
+    # 🟢 RETOURNER TOUTES LES VARIABLES DANS L'ORDRE ATTENDU
+    return alert_system, df_clean, ensemble_model, features, X, y
     
 # --- FONCTIONS DE VISUALISATION ---
 def create_confusion_matrix(model, X, y):
