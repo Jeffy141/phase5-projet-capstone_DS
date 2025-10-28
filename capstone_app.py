@@ -197,18 +197,16 @@ def load_model_and_data():
     X = df_clean[features]
     y = df_clean['Fault_Type']
 
-    # Modèle ensemble (sans SVC)
+# Modèle ensemble
     rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
     xgb_model = XGBClassifier(random_state=42)
-    # svm_model = SVC(probability=True, random_state=42) # ❌ Ligne retirée
+    # ❌ svm_model est retiré car il est la source du conflit de classes
     
     ensemble_model = VotingClassifier(
-        # N'inclure que les modèles qui ne créent pas de problèmes de classes
+        # 🟢 N'utiliser que Random Forest et XGBoost pour garantir la stabilité
         estimators=[('rf', rf_model), ('xgb', xgb_model)],
         voting='soft'
     )
-
-    ensemble_model.fit(X, y) 
     
 # --- FONCTIONS DE VISUALISATION ---
 def create_confusion_matrix(model, X, y):
